@@ -1,0 +1,10 @@
+{
+  "email": "student@example.com",
+  "secret": "my_expected_secret_value_123",
+  "task": "test-task",
+  "round": 2,
+  "nonce": "xyz-123",
+  "brief": "Round2: now support SVG images too",
+  "attachments": [],
+  "evaluation_url": "https://httpbin.org/post"
+}

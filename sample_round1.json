@@ -1,0 +1,10 @@
+{
+  "email": "student@example.com",
+  "secret": "my_expected_secret_value_123",
+  "task": "test-task",
+  "round": 1,
+  "nonce": "xyz-123",
+  "brief": "Round1: create a minimal demo page showing ?url parameter",
+  "attachments": [],
+  "evaluation_url": "https://httpbin.org/post"
+}
