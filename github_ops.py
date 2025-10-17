@@ -51,15 +51,30 @@ def push_directory_to_repo(local_dir, repo_full_name):
     remote = f"https://x-access-token:{token}@github.com/{repo_full_name}.git"
     cwd = str(Path(local_dir).resolve())
 
+    print(f"[github_ops] Initializing git in {cwd} and pushing to {repo_full_name}")
+
     # Basic git flow
     subprocess.run(["git", "init"], cwd=cwd, check=True)
     subprocess.run(["git", "checkout", "-b", "main"], cwd=cwd, check=True)
+
+    # Ensure git has a user identity (Render / ephemeral envs often lack global config)
+    subprocess.run(["git", "config", "user.email", "autobot@render.local"], cwd=cwd, check=True)
+    subprocess.run(["git", "config", "user.name", "Render Bot"], cwd=cwd, check=True)
+
     subprocess.run(["git", "add", "."], cwd=cwd, check=True)
-    subprocess.run(["git", "commit", "-m", "Initial commit (automated)"], cwd=cwd, check=True)
+
+    # commit (may fail if nothing to commit) — handle that gracefully
+    try:
+        subprocess.run(["git", "commit", "-m", "Initial commit (automated)"], cwd=cwd, check=True)
+    except subprocess.CalledProcessError as e:
+        # If commit failed due to "nothing to commit", continue; otherwise re-raise
+        print(f"[github_ops] git commit returned non-zero: {e}; continuing (may be nothing to commit)")
+
     subprocess.run(["git", "remote", "add", "origin", remote], cwd=cwd, check=True)
     subprocess.run(["git", "push", "-u", "origin", "main"], cwd=cwd, check=True)
 
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=cwd).decode().strip()
+    print(f"[github_ops] pushed commit {sha} to {repo_full_name}")
     return sha
 
 # ------------------ enable / ensure GitHub Pages ------------------
@@ -133,6 +148,7 @@ def clone_repo_to_tmp(repo_full_name, tmpdir):
     local = Path(tmpdir)
     if local.exists():
         shutil.rmtree(local)
+    print(f"[github_ops] cloning {repo_full_name} into {tmpdir}")
     subprocess.run(["git", "clone", remote, str(local)], check=True)
     return str(local)
 
@@ -144,6 +160,8 @@ def update_repo_with_dir(clone_dir, source_dir, commit_message="Round 2 update (
     """
     clone_path = Path(clone_dir)
     src_path = Path(source_dir)
+
+    print(f"[github_ops] updating repo at {clone_path} with files from {src_path}")
 
     # copy files from source_dir into repo root (overwrite existing files)
     for item in src_path.iterdir():
@@ -158,14 +176,18 @@ def update_repo_with_dir(clone_dir, source_dir, commit_message="Round 2 update (
         else:
             shutil.copy2(item, dest)
 
+    # Ensure git has a user identity (for ephemeral envs)
+    subprocess.run(["git", "config", "user.email", "autobot@render.local"], cwd=str(clone_path), check=True)
+    subprocess.run(["git", "config", "user.name", "Render Bot"], cwd=str(clone_path), check=True)
+
     # commit & push
     subprocess.run(["git", "add", "."], cwd=str(clone_path), check=True)
-    # make commit only if there are changes
     try:
         subprocess.run(["git", "commit", "-m", commit_message], cwd=str(clone_path), check=True)
     except subprocess.CalledProcessError:
-        # git commit returns non-zero when there's nothing to commit; that's OK
-        pass
+        # nothing to commit (ok)
+        print("[github_ops] no changes to commit")
     subprocess.run(["git", "push"], cwd=str(clone_path), check=True)
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(clone_path)).decode().strip()
+    print(f"[github_ops] updated repo commit {sha}")
     return sha
